@@ -9,13 +9,12 @@ else:
 	raise Exception('Unsupported Version of PyQt: {}'.format(PYQT_VER))
 
 
-
-
 import time
 import numpy as np
 from TSPClasses import *
 import heapq
 import itertools
+import random
 
 
 
@@ -37,6 +36,7 @@ class TSPSolver:
 		solution found, and three null values for fields not used for this 
 		algorithm</returns> 
 	'''
+
 	
 	def defaultRandomTour( self, time_allowance=60.0 ):
 		results = {}
@@ -68,6 +68,32 @@ class TSPSolver:
 		results['pruned'] = None
 		return results
 
+	def reducedCostMatrix(self,matrix):
+		bound = 0
+		resultMatrix = matrix
+		for i in range(len(resultMatrix)): #For each row, subtract minimum value of the row from each cell of the row
+			minimumVal = min(resultMatrix[i])
+
+			if (minimumVal != float('inf')): #If the minimum is not infinity
+				for k in range(len(resultMatrix[i])):
+					resultMatrix[i][k] -= minimumVal
+				bound += minimumVal
+
+		for j in range(len(resultMatrix[0])): #For each column, subtract minimum value of column from each cell of the column
+			minimumVal = float('inf')
+			for k in range(len(resultMatrix)):
+				if (resultMatrix[k][j] < minimumVal):
+					minimumVal = resultMatrix[k][j]
+			if (minimumVal != float('inf')): #If the minimum is not infinity
+				for k in range(len(resultMatrix)):
+					resultMatrix[k][j] -= minimumVal
+				bound += minimumVal
+			elif (j == 0): #If there is no path back to the start of the tour....
+				print('Unique case reached')
+				bound += float('inf') #....then the cost of the reduction can be set to infinity!
+
+		return resultMatrix,bound 
+
 
 	''' <summary>
 		This is the entry point for the greedy solver, which you must implement for 
@@ -82,10 +108,76 @@ class TSPSolver:
 	'''
 
 	def greedy( self,time_allowance=60.0 ):
-		pass
-	
-	
-	
+		
+		results = {} #Result of the function
+		cities = self._scenario.getCities()
+		start_time = time.time()
+		count = 0 #How many times the loop has iterated
+
+		# AdjMatrix = [[float('inf') for j in range(len(cities))] for i in range(len(cities))] #Initialize adjacency matrix
+
+		# for i in range(len(cities)): #Set up the distances of the adjacenty matrix
+		# 	for j in range(len(cities)):
+		# 		if i != j:			
+		# 			dist = cities[i].costTo(cities[j])
+		# 			AdjMatrix[i][j] = dist
+
+		# #AdjMatrix = [[float('inf'),7,3,12],[3,float('inf'),6,14],[5,8,float('inf'),6],[9,3,5,float('inf')]]
+		# print(AdjMatrix)
+
+		#reducedCost = self.reducedCostMatrix(AdjMatrix) #Function to get reduced cost matrix
+		#AdjMatrix = reducedCost[0] #The first result of that function gives the matrix
+
+		#bound = reducedCost[1] #The second result of the function gives the reduction cost
+
+		Solution = None
+		iterator = 0 #Gives the while loop 5 chances to find a valid solution
+		
+		while (iterator <= 5):
+			#visited = [False] * len(cities)
+			count += 1
+			route = []
+			cost = 0 #FIXME (Maybe we'll need to use reduced cost matrices?)
+			notVisited = [i for i in range(len(cities))]
+			nextCity = random.choice(notVisited)
+			firstCity = nextCity
+			route.append(cities[nextCity])
+			notVisited.remove(nextCity)
+			for i in range(len(cities)-1):
+				minDist = float('inf')
+				startCity = nextCity		
+				for j in range(len(notVisited)):
+					dist = cities[startCity].costTo(cities[notVisited[j]])
+					if dist < minDist:
+						minDist = dist
+						nextCity = notVisited[j]
+				
+				if minDist == float('inf'):
+					iterator += 1
+					break
+				else:
+					cost += minDist
+					route.append(cities[nextCity])
+					notVisited.remove(nextCity)
+			if (len(route) == len(cities)): #End of tour
+				if (cities[nextCity].costTo(cities[firstCity]) != float('inf')):
+					cost += cities[nextCity].costTo(cities[firstCity])
+					Solution = route
+					break
+				else:
+					iterator += 1
+		
+		end_time = time.time()
+		tspSolution = TSPSolution(route)
+		results['cost'] = cost if Solution != None else math.inf
+		results['time'] = end_time - start_time
+		results['count'] = count
+		results['soln'] = tspSolution if Solution != None else None
+		return results
+
+
+
+
 	''' <summary>
 		This is the entry point for the branch-and-bound algorithm that you will implement
 		</summary>
