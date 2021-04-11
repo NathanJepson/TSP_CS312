@@ -15,7 +15,7 @@ from TSPClasses import *
 import heapq
 import itertools
 import random
-
+import copy
 
 
 class TSPSolver:
@@ -114,22 +114,6 @@ class TSPSolver:
 		start_time = time.time()
 		count = 0 #How many times the loop has iterated
 
-		# AdjMatrix = [[float('inf') for j in range(len(cities))] for i in range(len(cities))] #Initialize adjacency matrix
-
-		# for i in range(len(cities)): #Set up the distances of the adjacenty matrix
-		# 	for j in range(len(cities)):
-		# 		if i != j:			
-		# 			dist = cities[i].costTo(cities[j])
-		# 			AdjMatrix[i][j] = dist
-
-		# #AdjMatrix = [[float('inf'),7,3,12],[3,float('inf'),6,14],[5,8,float('inf'),6],[9,3,5,float('inf')]]
-		# print(AdjMatrix)
-
-		#reducedCost = self.reducedCostMatrix(AdjMatrix) #Function to get reduced cost matrix
-		#AdjMatrix = reducedCost[0] #The first result of that function gives the matrix
-
-		#bound = reducedCost[1] #The second result of the function gives the reduction cost
-
 		Solution = None
 		iterator = 0 #Gives the while loop 5 chances to find a valid solution
 		
@@ -202,4 +186,80 @@ class TSPSolver:
 	'''
 		
 	def fancy( self,time_allowance=60.0 ):
-		pass
+		results = {} #Result of the function
+		cities = self._scenario.getCities()
+		start_time = time.time()
+		count = 0 #How many times the loop has iterated
+		
+		Greedy_Result = self.greedy(time_allowance)
+
+		BSSF = Greedy_Result['cost']
+		firstRoute = Greedy_Result['soln'] #PUT IN WHILE LOOP TO GET BACK VALID ROUTE
+
+		iterations = len(cities) + 1
+
+		tabuList = [0] * len(cities)
+		tabuTener = math.floor(math.sqrt(len(cities)))
+		numNeighbors = 3
+
+		bestSolution = firstRoute
+		currentSolution = firstRoute #Route
+		for i in range(iterations):
+			count += 1
+			for j in range(len(tabuList)):
+				if (tabuList[j] != 0):
+					tabuList[j] -= 1
+			neighbors = []
+			for j in range(numNeighbors):
+				city1 = random.choice(currentSolution.route)
+				city2 = random.choice(currentSolution.route)
+				while (city1._index == city2._index):
+					city2 = random.choice(currentSolution.route)
+				city1_index = currentSolution.route.index(city1)
+				city2_index = currentSolution.route.index(city2)
+
+				newSolution = copy.deepcopy(currentSolution.route) #FIXME
+				newSolution[city1_index] = city2
+				newSolution[city2_index] = city1
+
+				tempTSPSolution = TSPSolution(newSolution)
+				cost = tempTSPSolution.cost
+
+				neighbors.append((tempTSPSolution,cost,city1._index,city2._index))
+			minCost = float('inf')
+			minSolution  = None
+			for j in range(len(neighbors)):
+				isTabu = False
+				if (tabuList[neighbors[j][2]] != 0 or tabuList[neighbors[j][3]] != 0):
+					isTabu = True
+				if (neighbors[j][1] < minCost and (isTabu == False)):
+					minCost = neighbors[j][1]
+					minSolution = j
+				elif (isTabu and neighbors[j][1] < BSSF and neighbors[j][i] < minCost): #If cost is better than BSSF, than break tabu
+					minCost = neighbors[j][1]
+					minSolution = j
+			#Add Tabus to tabuList
+			#We are currently making city1 of the swapped solution tabu FIXME
+
+			if (minSolution != None):
+				#If neither of the values were tabu before
+				if (neighbors[minSolution][2] == 0 and neighbors[minSolution][3] == 0  ):
+					tabuList[neighbors[minSolution][2]] = tabuTener #...then make city 1 tabu
+
+				#Set next 'current solution'
+				currentSolution = neighbors[minSolution][0]
+
+				#Replace BSSF when necessary
+				if (currentSolution.cost < BSSF):
+					BSSF = currentSolution.cost
+					bestSolution = currentSolution
+
+		end_time = time.time()
+		
+		results['cost'] = bestSolution.cost if Greedy_Result['cost'] != float('inf') else math.inf
+		results['time'] = end_time - start_time
+		results['count'] = count
+		results['soln'] = bestSolution if Greedy_Result['cost'] != float('inf') else None
+		return results
+
+
