@@ -355,10 +355,10 @@ class TSPSolver:
 		BSSF = initial_cost
 		firstRoute = Best_Greedy['soln'] #PUT IN WHILE LOOP TO GET BACK VALID ROUTE
 
-		iterations = len(cities) #len(cities) + 1
+		iterations = len(cities)
 
 		tabuList = [0] * len(cities)
-		tabuTener = 3 #math.floor(math.sqrt(len(cities)))
+		tabuTener = math.floor(math.sqrt(len(cities))) #3
 		numNeighbors = math.floor(3 * len(cities))
 
 		bestSolution = firstRoute
@@ -369,32 +369,59 @@ class TSPSolver:
 				if (tabuList[j] != 0):
 					tabuList[j] -= 1
 			neighbors = []
-			# for j in range(numNeighbors):
-			# 	city1 = random.choice(currentSolution.route)
-			# 	city2 = random.choice(currentSolution.route)
-			for j in range(len(currentSolution.route)):
-				for k in range(len(currentSolution.route)):
-					if j != len(currentSolution.route) and k != len(currentSolution.route):
-						city1 = currentSolution.route[j]
-						city2 = currentSolution.route[k]
-						while (city1._index == city2._index):
-							city2 = random.choice(currentSolution.route)
-						city1_index = currentSolution.route.index(city1)
-						city2_index = currentSolution.route.index(city2)
+			for j in range(numNeighbors):
+				city1 = random.choice(currentSolution.route)
+				city2 = random.choice(currentSolution.route)
+				city3 = random.choice(currentSolution.route)
+				while (city1._index == city2._index or city2._index == city3._index or city3._index == city1._index):
+					city1 = random.choice(currentSolution.route)
+					city2 = random.choice(currentSolution.route)
+					city3 = random.choice(currentSolution.route)
+						
+				city1_index = currentSolution.route.index(city1)
+				city2_index = currentSolution.route.index(city2)
+				city3_index = currentSolution.route.index(city3)
 
-						newSolution = copy.deepcopy(currentSolution.route)
+				newSolution = copy.deepcopy(currentSolution.route)
+				if (iterations % 3 != 0):
+					coinFlip = random.randint(0, 1)
+
+					if (coinFlip == 0):
+					#Do a 1 2 3 -> 3 1 2 Swap
+						newSolution[city1_index] = city3
+						newSolution[city2_index] = city1
+						newSolution[city3_index] = city2
+
+					else:
+					#Do a 1 2 3 -> 2 3 1 Swap
+						newSolution[city1_index] = city2
+						newSolution[city2_index] = city3
+						newSolution[city3_index] = city1
+				else:
+					coinFlip = (0,1,2)
+
+					if (coinFlip == 0):
 						newSolution[city1_index] = city2
 						newSolution[city2_index] = city1
+					elif(coinFlip == 1):
+						newSolution[city2_index] = city3
+						newSolution[city3_index] = city2
+					else:
+						newSolution[city1_index] = city3
+						newSolution[city3_index] = city1
+					
+				# newSolution[city1_index] = city2
+				# newSolution[city2_index] = city1
 
-						tempTSPSolution = TSPSolution(newSolution)
-						cost = tempTSPSolution.cost
+				tempTSPSolution = TSPSolution(newSolution)
+				cost = tempTSPSolution.cost
 
-						neighbors.append((tempTSPSolution,cost,city1._index,city2._index))
+				neighbors.append((tempTSPSolution,cost,city1._index,city2._index,city3._index))
 			minCost = float('inf')
 			minSolution  = None
 			for j in range(len(neighbors)):
 				isTabu = False
-				if (tabuList[neighbors[j][2]] != 0 or tabuList[neighbors[j][3]] != 0):
+				if (tabuList[neighbors[j][2]] != 0 or tabuList[neighbors[j][3]] != 0 or tabuList[neighbors[j][4]]):
 					isTabu = True
 				if (neighbors[j][1] < minCost and (isTabu == False)):
 					minCost = neighbors[j][1]
@@ -407,7 +434,8 @@ class TSPSolver:
 
 			if (minSolution != None):
 				#If neither of the values were tabu before
-				if (tabuList[neighbors[minSolution][2]] == 0 and tabuList[neighbors[minSolution][3]] == 0 ):
+				if (tabuList[neighbors[minSolution][2]] == 0 and tabuList[neighbors[minSolution][3]] == 0 and \
+					tabuList[neighbors[minSolution][4]] == 0):
 					tabuList[neighbors[minSolution][2]] = tabuTener #...then make city 1 tabu
 
 				#Set next 'current solution'
