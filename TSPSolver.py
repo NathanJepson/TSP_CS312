@@ -398,7 +398,7 @@ class TSPSolver:
 						newSolution[city2_index] = city3
 						newSolution[city3_index] = city1
 				else:
-					coinFlip = (0,1,2)
+					coinFlip = random.randint(0,2)
 
 					if (coinFlip == 0):
 						newSolution[city1_index] = city2
