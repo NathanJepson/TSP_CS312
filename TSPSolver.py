@@ -17,6 +17,23 @@ import itertools
 import random
 import copy
 
+class Node:
+	def __init__(self, lowerBound, matrix, pathSoFar, prevNode, thisNode):
+		self.pathSoFar = pathSoFar #List of cities on the tour so far
+		self.matrix = matrix.copy() #Matrix for the currently stored state
+		self.lowerBound = lowerBound #Minimum possible cost for the branch
+		self.leadingEdge = tuple((prevNode,thisNode)) #The tuple describing the edge to this node (prevNode,thisNode)
+
+	def __lt__(self,other):
+		return self.leadingEdge[1] < other.leadingEdge[1] #Overloaded less-than function
+
+	def __eq__(self, other): #Overloaded equality function
+		if(other == None):
+			return False
+		if(not isinstance(other, Node)):
+			return False
+		return self.leadingEdge[1] == other.leadingEdge[1]
+
 
 class TSPSolver:
 	def __init__( self, gui_view ):
@@ -171,8 +188,144 @@ class TSPSolver:
 		max queue size, total number of states created, and number of pruned states.</returns> 
 	'''
 		
-	def branchAndBound( self, time_allowance=60.0 ):
-		pass
+	def branchAndBound( self, time_allowance=600.0 ):
+		results = {} #Result of the function
+		cities = self._scenario.getCities()
+		start_time = time.time()
+		pruned = 0 #Number of pruned branches
+		theMax = 0 #Biggest the priority queue has gotten
+		total = 0 #Number of total new states
+		count = 0 #How many times the loop has iterated
+
+		AdjMatrix = [[float('inf') for j in range(len(cities))] for i in range(len(cities))] #Initialize adjacency matrix
+
+		for i in range(len(cities)): #Set up the distances of the adjacenty matrix
+			for j in range(len(cities)):
+				if i != j:			
+					dist = cities[i].costTo(cities[j])
+					AdjMatrix[i][j] = dist
+
+		#AdjMatrix = [[float('inf'),7,3,12],[3,float('inf'),6,14],[5,8,float('inf'),6],[9,3,5,float('inf')]]
+		#print(AdjMatrix)
+
+		reducedCost = self.reducedCostMatrix(AdjMatrix) #Function to get reduced cost matrix
+		AdjMatrix = reducedCost[0] #The first result of that function gives the matrix
+
+		bound = reducedCost[1] #The second result of the function gives the reduction cost
+
+		BSSF_Initial = float('inf')
+		for i in range(5):
+			aResult = self.defaultRandomTour(time_allowance)['cost']
+			if aResult < BSSF_Initial:
+				BSSF_Initial = aResult
+
+		BSSF = BSSF_Initial #Get an initial BSSF
+		#print('BSSF: ',BSSF)
+		SolutionNodeSoFar = None #Stores the node containing the best tour that we know so far
+
+		thisPath = [0] #Path that the tour is taking so far
+		root = Node(bound,AdjMatrix,thisPath,None,0) #Starting node of the tour
+
+		goodQueue = []
+		heapq.heapify(goodQueue)
+		#heapq.heappush(goodQueue, (tuple((len(AdjMatrix)-len(root.pathSoFar),bound)), root)) #Set depth and lower bound as key of priority queue
+		key1 = tuple((len(AdjMatrix)-len(root.pathSoFar),bound))
+		heapq.heappush(goodQueue, (key1, root))
+		theMax = 1
+		total = 1
+
+		#WHEN TO PRUNE
+		#==================================================================
+		#Take a state off of the queue and it’s lb > bssf? +1 to pruned
+		#New child that’s lb > bssf? +1 to the pruned
+		while (len(goodQueue) != 0):
+			count += 1 
+
+			currentTime = time.time() - start_time
+			if (currentTime > time_allowance):
+				break #If exceeded time allotment, break out of the loop
+
+			thisNode = heapq.heappop(goodQueue)[1] #Pop new state off of the queue
+
+			if (thisNode.lowerBound > BSSF): #If this new node exceeds BSSF, then prune the branch
+				pruned += 1
+				continue
+		
+			children = [q for q in range(len(AdjMatrix))]
+			iterator = 0
+			#After this while loop finishes executing, we will have a list of all children states that haven't been visited yet
+			while(len(children) != (len(AdjMatrix) - len(thisNode.pathSoFar) ) ):
+				if (children[iterator] in thisNode.pathSoFar):
+					children.remove(children[iterator])
+				else:
+					iterator+=1
+
+			nodeFrom = thisNode.leadingEdge[1] #Basically the city index of the current city
+			if (len(children) == 0): #If tour is complete
+				newBSSF = thisNode.lowerBound + thisNode.matrix[nodeFrom][0]
+				if (newBSSF <= BSSF):
+					BSSF = newBSSF #Set new BSSF since this is a better (or equal) solution with lower cost
+					SolutionNodeSoFar = thisNode
+
+			else:	#Tour is not complete
+				for i in range(len(children)):
+					thisChild = children[i]
+					
+					newBound = thisNode.lowerBound #Lower bound of parent
+					distTo = thisNode.matrix[nodeFrom][thisChild] #Dist to this child
+					newBound = newBound + distTo
+
+					newMatrix = copy.deepcopy(thisNode.matrix)
+
+					for j in range(len(newMatrix[0])): #Set the row of the node from to all infinity
+						newMatrix[nodeFrom][j] = float('inf')
+					for ki in range(len(newMatrix)): #Set column of the node to to all infinity
+						newMatrix[ki][thisChild] = float('inf')
+					newMatrix[thisChild][nodeFrom] = float('inf')
+
+					reduced = self.reducedCostMatrix(newMatrix)
+					newBound = newBound + reduced[1] #New bound will be the cost of reducing this new matrix
+					newMatrix = reduced[0] #.copy() ? FIXME
+
+					if (newBound > BSSF): #Solution is not worth pursuing, so prune the branch
+						pruned += 1
+						
+					else:
+						#This else statement is for putting a new child on the queue, and constructing the node and its key on the queue
+						newPathSoFar = copy.deepcopy(thisNode.pathSoFar)
+						newPathSoFar.append(thisChild)
+						depth = len(AdjMatrix)-len(newPathSoFar)
+						key = tuple((depth,newBound))
+
+						heapq.heappush(goodQueue, (key, Node(newBound,newMatrix, \
+							newPathSoFar,nodeFrom,thisChild)))
+						total += 1
+						if (len(goodQueue) > theMax):
+							theMax = len(goodQueue)
+
+		theTour = None
+		tour = []
+		tspSolution = None
+
+		#If there is a solution, then construct the tour
+		if (SolutionNodeSoFar != None):
+			theTour = SolutionNodeSoFar.pathSoFar
+			for i in range(len(theTour)):
+				tour.append(cities[theTour[i]])
+			tspSolution = TSPSolution(tour)
+		else:
+			print('Solution not found!')
+		
+		
+		end_time = time.time()
+		results['cost'] = BSSF if theTour != None else math.inf
+		results['time'] = end_time - start_time
+		results['count'] = count
+		results['soln'] = tspSolution if theTour != None else None
+		results['max'] = theMax
+		results['total'] = total
+		results['pruned'] = pruned
+		return results
 
 
 
@@ -191,16 +344,22 @@ class TSPSolver:
 		start_time = time.time()
 		count = 0 #How many times the loop has iterated
 		
-		Greedy_Result = self.greedy(time_allowance)
+		Best_Greedy = None
+		initial_cost = float('inf')
+		for i in range(10):
+			Greedy_Result = self.greedy(time_allowance)
+			if Greedy_Result['cost'] < initial_cost:
+				initial_cost = Greedy_Result['cost']
+				Best_Greedy = Greedy_Result
 
-		BSSF = Greedy_Result['cost']
-		firstRoute = Greedy_Result['soln'] #PUT IN WHILE LOOP TO GET BACK VALID ROUTE
+		BSSF = initial_cost
+		firstRoute = Best_Greedy['soln'] #PUT IN WHILE LOOP TO GET BACK VALID ROUTE
 
-		iterations = len(cities) + 1
+		iterations = len(cities) #len(cities) + 1
 
 		tabuList = [0] * len(cities)
-		tabuTener = math.floor(math.sqrt(len(cities)))
-		numNeighbors = 3
+		tabuTener = 3 #math.floor(math.sqrt(len(cities)))
+		numNeighbors = math.floor(3 * len(cities))
 
 		bestSolution = firstRoute
 		currentSolution = firstRoute #Route
@@ -210,22 +369,27 @@ class TSPSolver:
 				if (tabuList[j] != 0):
 					tabuList[j] -= 1
 			neighbors = []
-			for j in range(numNeighbors):
-				city1 = random.choice(currentSolution.route)
-				city2 = random.choice(currentSolution.route)
-				while (city1._index == city2._index):
-					city2 = random.choice(currentSolution.route)
-				city1_index = currentSolution.route.index(city1)
-				city2_index = currentSolution.route.index(city2)
+			# for j in range(numNeighbors):
+			# 	city1 = random.choice(currentSolution.route)
+			# 	city2 = random.choice(currentSolution.route)
+			for j in range(len(currentSolution.route)):
+				for k in range(len(currentSolution.route)):
+					if j != len(currentSolution.route) and k != len(currentSolution.route):
+						city1 = currentSolution.route[j]
+						city2 = currentSolution.route[k]
+						while (city1._index == city2._index):
+							city2 = random.choice(currentSolution.route)
+						city1_index = currentSolution.route.index(city1)
+						city2_index = currentSolution.route.index(city2)
 
-				newSolution = copy.deepcopy(currentSolution.route) #FIXME
-				newSolution[city1_index] = city2
-				newSolution[city2_index] = city1
+						newSolution = copy.deepcopy(currentSolution.route)
+						newSolution[city1_index] = city2
+						newSolution[city2_index] = city1
 
-				tempTSPSolution = TSPSolution(newSolution)
-				cost = tempTSPSolution.cost
+						tempTSPSolution = TSPSolution(newSolution)
+						cost = tempTSPSolution.cost
 
-				neighbors.append((tempTSPSolution,cost,city1._index,city2._index))
+						neighbors.append((tempTSPSolution,cost,city1._index,city2._index))
 			minCost = float('inf')
 			minSolution  = None
 			for j in range(len(neighbors)):
@@ -235,7 +399,7 @@ class TSPSolver:
 				if (neighbors[j][1] < minCost and (isTabu == False)):
 					minCost = neighbors[j][1]
 					minSolution = j
-				elif (isTabu and neighbors[j][1] < BSSF and neighbors[j][i] < minCost): #If cost is better than BSSF, than break tabu
+				elif (isTabu and neighbors[j][1] < BSSF and neighbors[j][1] < minCost): #If cost is better than BSSF, than break tabu
 					minCost = neighbors[j][1]
 					minSolution = j
 			#Add Tabus to tabuList
@@ -243,7 +407,7 @@ class TSPSolver:
 
 			if (minSolution != None):
 				#If neither of the values were tabu before
-				if (neighbors[minSolution][2] == 0 and neighbors[minSolution][3] == 0  ):
+				if (tabuList[neighbors[minSolution][2]] == 0 and tabuList[neighbors[minSolution][3]] == 0 ):
 					tabuList[neighbors[minSolution][2]] = tabuTener #...then make city 1 tabu
 
 				#Set next 'current solution'
@@ -252,6 +416,7 @@ class TSPSolver:
 				#Replace BSSF when necessary
 				if (currentSolution.cost < BSSF):
 					BSSF = currentSolution.cost
+					print('New BSSF: ',BSSF)
 					bestSolution = currentSolution
 
 		end_time = time.time()
