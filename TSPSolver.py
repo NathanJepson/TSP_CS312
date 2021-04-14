@@ -134,7 +134,9 @@ class TSPSolver:
 		Solution = None
 		iterator = 0 #Gives the while loop 5 chances to find a valid solution
 		
+
 		while (iterator <= 5):
+		#We give our algorithm 5 tries to find a valid solution (it always does)
 			#visited = [False] * len(cities)
 			count += 1
 			route = []
@@ -142,24 +144,27 @@ class TSPSolver:
 			notVisited = [i for i in range(len(cities))]
 			nextCity = random.choice(notVisited)
 			firstCity = nextCity
-			route.append(cities[nextCity])
-			notVisited.remove(nextCity)
+			route.append(cities[nextCity]) #Append the start of the route
+			notVisited.remove(nextCity) #Mark it as visited by removing it from 'not visited'
 			for i in range(len(cities)-1):
+			#This range needed to build a full route
 				minDist = float('inf')
 				startCity = nextCity		
 				for j in range(len(notVisited)):
+				#Find the next non-visited city with the minimum cost to traverse to
 					dist = cities[startCity].costTo(cities[notVisited[j]])
 					if dist < minDist:
 						minDist = dist
-						nextCity = notVisited[j]
+						nextCity = notVisited[j] #Mark next city as the one with minimal traversal cost
 				
 				if minDist == float('inf'):
+				#This means that the algorithm couldn't find a valid path. Break from this loop and repeat the outer loop. 
 					iterator += 1
 					break
 				else:
-					cost += minDist
-					route.append(cities[nextCity])
-					notVisited.remove(nextCity)
+					cost += minDist #Add to running cost total 
+					route.append(cities[nextCity]) #Add to the route
+					notVisited.remove(nextCity) #Mark this city as visited
 			if (len(route) == len(cities)): #End of tour
 				if (cities[nextCity].costTo(cities[firstCity]) != float('inf')):
 					cost += cities[nextCity].costTo(cities[firstCity])
@@ -214,8 +219,8 @@ class TSPSolver:
 		bound = reducedCost[1] #The second result of the function gives the reduction cost
 
 		BSSF_Initial = float('inf')
-		for i in range(5):
-			aResult = self.defaultRandomTour(time_allowance)['cost']
+		for i in range(11):
+			aResult = self.greedy(time_allowance)['cost']
 			if aResult < BSSF_Initial:
 				BSSF_Initial = aResult
 
@@ -347,38 +352,42 @@ class TSPSolver:
 		Best_Greedy = None
 		initial_cost = float('inf')
 		for i in range(10):
+		#Run Greedy 10 times and choose the best solution
 			Greedy_Result = self.greedy(time_allowance)
 			if Greedy_Result['cost'] < initial_cost:
 				initial_cost = Greedy_Result['cost']
 				Best_Greedy = Greedy_Result
 
 		BSSF = initial_cost
-		firstRoute = Best_Greedy['soln'] #PUT IN WHILE LOOP TO GET BACK VALID ROUTE
+		firstRoute = Best_Greedy['soln']
 
-		iterations = len(cities)
+		iterations = len(cities) #How many iterations the while loop will run for
 
-		tabuList = [0] * len(cities)
-		tabuTener = math.floor(math.sqrt(len(cities))) #3
+		tabuList = [0] * len(cities) #List of cities which cannot be swapped again for a certain number of iterations.
+									#...When at city's index there is a 0, it is not tabu. Everything else is tabu. 
+		tabuTener = math.floor(math.sqrt(len(cities))) #How long a city can remain tabu for
 		numNeighbors = 5
 
-		bestSolution = firstRoute
-		currentSolution = firstRoute #Route
+		bestSolution = firstRoute #Initialize best solution (result)
+		currentSolution = firstRoute #The "current route" of the iteration
 		for i in range(iterations):
 			count += 1
 			for j in range(len(tabuList)):
 				if (tabuList[j] != 0):
-					tabuList[j] -= 1
+					tabuList[j] -= 1 #Decrement each tabu'ed city by 1 (when the city is 0, it is no longer tabu)
 			neighbors = []
+			#Create as many neighbors as the variable numNeighbors
 			for j in range(numNeighbors):
 				city1 = random.choice(currentSolution.route)
 				city2 = random.choice(currentSolution.route)
 				city3 = random.choice(currentSolution.route)
 				while (city1._index == city2._index or city2._index == city3._index or city3._index == city1._index):
+				#This while loop ensures that all the three cities are not equal
 					city1 = random.choice(currentSolution.route)
 					city2 = random.choice(currentSolution.route)
 					city3 = random.choice(currentSolution.route)
 						
-				city1_index = currentSolution.route.index(city1)
+				city1_index = currentSolution.route.index(city1) #Makes it easier to swap later
 				city2_index = currentSolution.route.index(city2)
 				city3_index = currentSolution.route.index(city3)
 
@@ -398,6 +407,7 @@ class TSPSolver:
 						newSolution[city2_index] = city3
 						newSolution[city3_index] = city1
 				else:
+				#Rules governing two-way swaps (same format as 3-ways swaps above)
 					coinFlip = random.randint(0,2)
 
 					if (coinFlip == 0):
@@ -420,29 +430,35 @@ class TSPSolver:
 			minCost = float('inf')
 			minSolution  = None
 			for j in range(len(neighbors)):
+			#Iterate through every neighbor and see which one is the best new route
 				isTabu = False
 				if (tabuList[neighbors[j][2]] != 0 or tabuList[neighbors[j][3]] != 0 or tabuList[neighbors[j][4]]):
-					isTabu = True
+				#If any of the 3 cities were tabu...
+					isTabu = True #...then mark tabu
 				if (neighbors[j][1] < minCost and (isTabu == False)):
+				#If none of the cities were tabu and a minimum cost was recorded
 					minCost = neighbors[j][1]
-					minSolution = j
-				elif (isTabu and neighbors[j][1] < BSSF and neighbors[j][1] < minCost): #If cost is better than BSSF, than break tabu
+					minSolution = j #...then mark it as the current solution
+				elif (isTabu and neighbors[j][1] < BSSF and neighbors[j][1] < minCost): 
+				#If cost is better than BSSF, than break tabu
 					minCost = neighbors[j][1]
-					minSolution = j
+					minSolution = j #...and mark it as the current solution
 			#Add Tabus to tabuList
 			#We are currently making city1 of the swapped solution tabu FIXME
 
 			if (minSolution != None):
-				#If neither of the values were tabu before
+			#If there was a best neighbor recorded
 				if (tabuList[neighbors[minSolution][2]] == 0 and tabuList[neighbors[minSolution][3]] == 0 and \
 					tabuList[neighbors[minSolution][4]] == 0):
+				#If neither of the values were tabu before
 					tabuList[neighbors[minSolution][2]] = tabuTener #...then make city 1 tabu
 
 				#Set next 'current solution'
 				currentSolution = neighbors[minSolution][0]
 
-				#Replace BSSF when necessary
+				
 				if (currentSolution.cost < BSSF):
+				#Replace BSSF when necessary
 					BSSF = currentSolution.cost
 					print('New BSSF: ',BSSF)
 					bestSolution = currentSolution
