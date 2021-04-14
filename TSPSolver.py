@@ -359,7 +359,7 @@ class TSPSolver:
 
 		tabuList = [0] * len(cities)
 		tabuTener = math.floor(math.sqrt(len(cities))) #3
-		numNeighbors = math.floor(3 * len(cities))
+		numNeighbors = 5
 
 		bestSolution = firstRoute
 		currentSolution = firstRoute #Route
